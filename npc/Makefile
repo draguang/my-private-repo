@@ -24,4 +24,4 @@ $(TARGET): $(VERILOG_SRC) $(CPP_SRC)
 clean:
 	rm -rf $(OBJ_DIR) $(TARGET) *.vcd *.fst
 
-.PHONY: sim all
+.PHONY: sim all clean
