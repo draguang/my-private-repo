@@ -12,13 +12,13 @@
 *
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
-
+#include <memory/paddr.h>
 #include <isa.h>
 #include <cpu/cpu.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "sdb.h"
-
+WP *head = NULL;
 static int is_batch_mode = false;
 
 void init_regex();
@@ -49,7 +49,132 @@ static int cmd_c(char *args) {
 
 
 static int cmd_q(char *args) {
+  nemu_state.state = NEMU_QUIT;
   return -1;
+}
+
+static int cmd_si(char *args)
+{
+  uint64_t num = 0;
+  if(args == NULL)
+    cpu_exec(1);
+  else
+  {
+    sscanf(args,"%lu",&num);
+    cpu_exec(num);
+  }
+  return 0;
+}
+
+static int cmd_info(char *args) 
+{
+  char *arg = strtok(NULL, " ");
+  if (arg == NULL) {
+    return 0;
+  }
+  else if(arg[0] == 'r') {
+    isa_reg_display();
+  }
+  else if (arg[0] == 'w') {
+    print_wp();
+  }
+  return 0;
+}
+
+static int cmd_x(char *args)
+{
+  char *n = strtok(NULL, " ");
+  if (n == NULL) 
+  {
+    printf("Argument required.\n");
+    return 0;
+  }
+  int64_t num = 1;
+  char *addr = strtok(NULL, " ");
+  if(addr != NULL)
+  {
+    sscanf(n,"%lu",&num);
+  }
+  else
+  {
+    addr = n;
+  }
+  if (addr[0] == '0' && (addr[1] == 'x' || addr[1] == 'X')) 
+  {
+    addr += 2;
+  }
+  else 
+  {
+    printf("Invalid number.\n");
+    return 0;
+  }
+  size_t len = strlen(addr);
+  uint64_t address = 0;
+  for (int i = 0; i < len; ++i) 
+  {
+    address <<= 4;
+    if (isdigit(addr[i])) 
+    {
+      address += (addr[i] - '0');
+    } 
+    else if (addr[i] >= 'a' && addr[i] <= 'f') 
+    {
+      address += (addr[i] - 'a' + 10);
+    } 
+    else if (addr[i] >= 'A' && addr[i] <= 'F') 
+    {
+      address += (addr[i] - 'A' + 10);
+    } 
+    else 
+    {
+      printf("Invalid number.\n");
+      return 0;
+    }
+  }
+  int direct = num > 0 ? 4 : -4;  
+    num = num > 0 ? num : -num;
+    for ( ; num > 0; --num) 
+    {
+      word_t ret = paddr_read(address, 4); 
+      printf("0x%lx: 0x%08x\n", address, ret);  
+      address += direct;
+    }
+  return 0;
+}
+
+static int cmd_d(char *args)
+{
+
+  return 0;
+}
+
+static int cmd_p(char *args)
+{
+  bool success = true;
+  uint32_t result = expr(args,&success);
+  if(!success)
+    printf("Invalid expressions.");
+  else
+    printf("%u\n",result);
+  return 0;
+}
+
+static int cmd_w(char *args)
+{
+  bool success = true;
+  uint32_t result = expr(args, &success);
+  if(!success)
+  {
+    printf("Invalid expressions.");
+    return 1;
+  }
+
+    WP *new = newwp();
+    strncpy(new->expr,args,sizeof(new->expr)-1);
+    new->expr[sizeof(new->expr)-1] = '\0';
+    new->value = result;
+    printf("setting success!\n");
+    return 0;
 }
 
 static int cmd_help(char *args);
@@ -62,9 +187,13 @@ static struct {
   { "help", "Display information about all supported commands", cmd_help },
   { "c", "Continue the execution of the program", cmd_c },
   { "q", "Exit NEMU", cmd_q },
-
+  { "si","Execute single programming",cmd_si},
+  { "info","Print the infomation",cmd_info},
+  { "x","scanning the ram",cmd_x},
+  { "p","calculate the expressions",cmd_p},
+  { "w","set the watchpoint",cmd_w},
+  { "d","delete the watchpoint by number",cmd_d}
   /* TODO: Add more commands */
-
 };
 
 #define NR_CMD ARRLEN(cmd_table)

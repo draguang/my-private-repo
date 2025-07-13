@@ -17,16 +17,10 @@
 
 #define NR_WP 32
 
-typedef struct watchpoint {
-  int NO;
-  struct watchpoint *next;
 
-  /* TODO: Add more members if necessary */
 
-} WP;
-
-static WP wp_pool[NR_WP] = {};
-static WP *head = NULL, *free_ = NULL;
+WP wp_pool[NR_WP] = {};
+WP *free_ = NULL;
 
 void init_wp_pool() {
   int i;
@@ -40,4 +34,59 @@ void init_wp_pool() {
 }
 
 /* TODO: Implement the functionality of watchpoint */
+WP *newwp()
+{
+  if(free_ == NULL)
+    assert(0);
+  else
+  {
+    WP *result = free_;
+    free_ = free_->next;
+    result->next = head;
+    head = result;
+    return result;
+  }
+}
 
+void free_wp(WP *wp)
+{
+  wp->value = 0;
+  memset(wp->expr,0,sizeof(wp->expr));
+  if (wp == NULL || head == NULL) return;
+  WP **test = &head;
+  while(*test != NULL && *test != wp)
+  {
+    *test = (*test)->next;
+  }
+  if (*test == NULL) return;
+  *test = wp->next;
+  wp->next = free_;
+  free_ = wp;
+}
+
+
+
+char is_enable(WP *wp)
+{
+  #ifdef CONFIG_WATCHPOINT
+    return 'y';
+  #endif
+  return 'n';
+}
+
+void print_wp()
+{
+  if(head == NULL)
+    printf("No setted watchpoint!\n");
+  else
+  {
+    bool success = true;
+    WP *count = head;
+    printf("%-8s %-8s %-8s %-8s","NO","value","enable","expr");
+    while(count!=NULL)
+    {
+      printf("%-8d %-8u %-8c %-8s\n",count->NO,expr(count->expr,&success),is_enable(count),count->expr);
+      count = count->next;
+    }
+  }
+}
