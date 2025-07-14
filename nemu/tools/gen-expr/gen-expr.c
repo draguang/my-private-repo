@@ -117,34 +117,45 @@ int main(int argc, char *argv[]) {
     sscanf(argv[1], "%d", &loop);
   }
   int i;
-  for (i = 0; i < loop; i ++) {
-    memset(buf, '\0', sizeof(buf));
-    gen_rand_expr(0);
-    if(is_division_by_zero())
-    {
-      do{
-        memset(buf, '\0', sizeof(buf));
-        gen_rand_expr(0);
-      }while(is_division_by_zero());
+  for (i = 0; i < loop; i++) {
+    int valid = 0;
+    while (!valid) {
+      memset(buf, '\0', sizeof(buf));
+      gen_rand_expr(0);
+      
+      if (is_division_by_zero()) continue;
+      
+      sprintf(code_buf, code_format, buf);
+      FILE *fp = fopen("/tmp/.code.c", "w");
+      assert(fp != NULL);
+      fputs(code_buf, fp);
+      fclose(fp);
+
+      int ret = system("gcc /tmp/.code.c -o /tmp/.expr 2>/dev/null");
+      if (ret != 0) continue;  
+      
+      fp = popen("/tmp/.expr 2>&1", "r");  
+      if (fp == NULL) continue;
+      
+      char output[128];
+      int result;
+      if (fgets(output, sizeof(output), fp) == NULL) {
+        pclose(fp);
+        continue; 
+      }
+      pclose(fp);
+      
+      if (strstr(output, "Floating point exception") != NULL) {
+        continue;  
+      }
+      
+      if (sscanf(output, "%d", &result) != 1) {
+        continue;  
+      }
+      
+      valid = 1;
+      printf("%u %s\n", result, buf);
     }
-    sprintf(code_buf, code_format, buf);
-
-    FILE *fp = fopen("/tmp/.code.c", "w");
-    assert(fp != NULL);
-    fputs(code_buf, fp);
-    fclose(fp);
-
-    int ret = system("gcc /tmp/.code.c -o /tmp/.expr");
-    if (ret != 0) continue;
-
-    fp = popen("/tmp/.expr", "r");
-    assert(fp != NULL);
-
-    int result;
-    ret = fscanf(fp, "%d", &result);
-    pclose(fp);
-
-    printf("%u %s\n", result, buf);
   }
   return 0;
 }

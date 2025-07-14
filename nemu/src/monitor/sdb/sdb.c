@@ -145,6 +145,12 @@ static int cmd_x(char *args)
 static int cmd_d(char *args)
 {
 
+  int no;
+  sscanf(args,"%d",&no);
+  if(delete_watchpoint(no))
+    printf("The watchpoint has been deleted\n");
+  else
+    printf("Invalid NO\n"); 
   return 0;
 }
 
@@ -153,7 +159,7 @@ static int cmd_p(char *args)
   bool success = true;
   uint32_t result = expr(args,&success);
   if(!success)
-    printf("Invalid expressions.");
+    printf("Invalid expressions.\n");
   else
     printf("%u\n",result);
   return 0;
@@ -165,7 +171,7 @@ static int cmd_w(char *args)
   uint32_t result = expr(args, &success);
   if(!success)
   {
-    printf("Invalid expressions.");
+    printf("Invalid expressions.\n");
     return 1;
   }
 

@@ -52,14 +52,7 @@ void free_wp(WP *wp)
 {
   wp->value = 0;
   memset(wp->expr,0,sizeof(wp->expr));
-  if (wp == NULL || head == NULL) return;
-  WP **test = &head;
-  while(*test != NULL && *test != wp)
-  {
-    *test = (*test)->next;
-  }
-  if (*test == NULL) return;
-  *test = wp->next;
+  if (wp == NULL)  return;
   wp->next = free_;
   free_ = wp;
 }
@@ -82,11 +75,31 @@ void print_wp()
   {
     bool success = true;
     WP *count = head;
-    printf("%-8s %-8s %-8s %-8s","NO","value","enable","expr");
+    printf("%-8s %-8s %-8s %-8s\n","NO","value","enable","expr");
     while(count!=NULL)
     {
       printf("%-8d %-8u %-8c %-8s\n",count->NO,expr(count->expr,&success),is_enable(count),count->expr);
       count = count->next;
     }
   }
+}
+
+int delete_watchpoint(int no)
+{
+  int is_exist = 0;
+  WP **temp = &head;
+  while(*temp != NULL)
+  {
+    WP *entry = *temp;
+    if(entry->NO == no)
+    {
+      *temp = entry->next;
+      free_wp(entry);
+      is_exist = 1;
+      continue;
+    }
+    else
+      temp = &(entry->next);
+  }   
+  return is_exist;
 }
