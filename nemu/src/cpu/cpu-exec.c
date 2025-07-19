@@ -47,11 +47,12 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc)
       uint32_t new = expr(wp->expr,&success);
       if(success &&(new!=wp->value))
       {
-        nemu_state.state = NEMU_STOP;
+        
         printf("Watchpoint %d: %s changed from 0x%x to 0x%x\n", 
         wp->NO, wp->expr, wp->value, new);
         wp->value = new;
-        break;
+        nemu_state.state = NEMU_STOP;
+        continue;
       }
       wp = wp->next;
     }

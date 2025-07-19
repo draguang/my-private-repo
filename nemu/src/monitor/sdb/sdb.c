@@ -18,6 +18,8 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "sdb.h"
+#include <stdlib.h>
+#include <stdio.h>
 WP *head = NULL;
 static int is_batch_mode = false;
 
@@ -89,54 +91,26 @@ static int cmd_x(char *args)
     printf("Argument required.\n");
     return 0;
   }
-  int64_t num = 1;
+  int32_t num = 1;
   char *addr = strtok(NULL, " ");
-  if(addr != NULL)
+  bool success = true;
+  paddr_t address;
+  if(addr == NULL)
   {
-    sscanf(n,"%lu",&num);
+    addr = n;
+    address = expr(addr,&success);
   }
   else
   {
-    addr = n;
-  }
-  if (addr[0] == '0' && (addr[1] == 'x' || addr[1] == 'X')) 
-  {
-    addr += 2;
-  }
-  else 
-  {
-    printf("Invalid number.\n");
-    return 0;
-  }
-  size_t len = strlen(addr);
-  uint64_t address = 0;
-  for (int i = 0; i < len; ++i) 
-  {
-    address <<= 4;
-    if (isdigit(addr[i])) 
-    {
-      address += (addr[i] - '0');
-    } 
-    else if (addr[i] >= 'a' && addr[i] <= 'f') 
-    {
-      address += (addr[i] - 'a' + 10);
-    } 
-    else if (addr[i] >= 'A' && addr[i] <= 'F') 
-    {
-      address += (addr[i] - 'A' + 10);
-    } 
-    else 
-    {
-      printf("Invalid number.\n");
-      return 0;
-    }
+    sscanf(n,"%d",&num);
+    address = expr(addr,&success);
   }
   int direct = num > 0 ? 4 : -4;  
     num = num > 0 ? num : -num;
     for ( ; num > 0; --num) 
     {
       word_t ret = paddr_read(address, 4); 
-      printf("0x%lx: 0x%08x\n", address, ret);  
+      printf("0x%x: 0x%08x\n", address, ret);  
       address += direct;
     }
   return 0;
@@ -167,6 +141,11 @@ static int cmd_p(char *args)
 
 static int cmd_w(char *args)
 {
+  if(args == NULL)
+  {
+    printf("Invalid input");
+    return 0;
+  }
   bool success = true;
   uint32_t result = expr(args, &success);
   if(!success)
@@ -181,6 +160,40 @@ static int cmd_w(char *args)
     new->value = result;
     printf("setting success!\n");
     return 0;
+}
+
+static int cmd_ext(char *args)
+{
+  size_t origin_length = 0;
+  char *line = NULL;
+  ssize_t read;
+  FILE *input = fopen("/home/guanglong/ysyx-workbench/nemu/tools/gen-expr/input","r");
+  if(input == NULL)
+  {
+    printf("opening failed\n");
+    return -1;
+  }
+  int all = 0;
+  int pass = 0;
+  uint32_t answer;
+  bool success = true;
+  uint32_t value;
+  while((read = getline(&line,&origin_length,input))!=-1)
+  {
+    char *str = malloc(read+1);
+    all++;
+    sscanf(line, "%u %[^\n]", &answer, str);
+    value = expr(str,&success);
+    if(value == answer)
+      pass++;
+    else
+      printf("NO.%d answer:%u your:%u\n",all,answer,value);
+    free(str);
+  }
+  fclose(input);
+  printf("pass:%d all:%d\n",pass,all);
+  free(line);
+  return 0;
 }
 
 static int cmd_help(char *args);
@@ -198,7 +211,8 @@ static struct {
   { "x","scanning the ram",cmd_x},
   { "p","calculate the expressions",cmd_p},
   { "w","set the watchpoint",cmd_w},
-  { "d","delete the watchpoint by number",cmd_d}
+  { "d","delete the watchpoint by number",cmd_d},
+  { "ext","test the score of expr",cmd_ext}
   /* TODO: Add more commands */
 };
 

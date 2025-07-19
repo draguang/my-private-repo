@@ -20,9 +20,11 @@
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
+#include <unistd.h>
 // this should be enough
-static char buf[65536] = {};
-static char code_buf[65536 + 128] = {}; // a little larger than `buf`
+static size_t origin_length = 65536;
+char *buf = NULL;
+char *code_buf = NULL;
 static char *code_format =
 "#include <stdio.h>\n"
 "int main() { "
@@ -30,7 +32,7 @@ static char *code_format =
 "  printf(\"%%u\", result); "
 "  return 0; "
 "}";
-
+static void larger(size_t length);
 static uint32_t choose(uint32_t num)
 {
   return rand()%num;
@@ -41,17 +43,15 @@ static void gen_num()
   uint32_t num = rand()%9+1;
   char num_str[2];
   snprintf(num_str, sizeof(num_str), "%d", num);
-    if(strlen(buf)+strlen(num_str)<sizeof(buf)) 
-    {
-        strcat(buf, num_str);
-    }
+  larger(strlen(num_str));
+  strcat(buf, num_str);
 }
 
 static void gen(char c)
 {
   char des[2] = {c,'\0'};
-  if(strlen(buf)+1<sizeof(buf))
-    strcat(buf,des);
+  larger(1);
+  strcat(buf,des);
 }
 
 static void gen_rand_op()
@@ -60,7 +60,7 @@ static void gen_rand_op()
     return;
   char op[4] = {'+','-','*','/'};
   char des[2] = {op[choose(4)], '\0'};
-  if(strlen(buf)+1<sizeof(buf))
+  if(strlen(buf)+1<origin_length)
     strcat(buf,des);
 }
 
@@ -72,7 +72,8 @@ static void gen_rand_expr(int depth) {
   }
   switch (choose(3)) {
     case 0: 
-    if(buf[0] == '\0' || !isdigit(buf[strlen(buf)-1])) {
+    if(buf[0] == '\0' || !isdigit(buf[strlen(buf)-1])) 
+    {
         gen_num();
     }
     break;
@@ -109,7 +110,20 @@ static int is_division_by_zero()
   return 0;
 }
 
+static void larger(size_t length)
+{
+  if(strlen(buf)+length+1>origin_length)
+  {
+    origin_length*=2;
+    char*new = realloc(buf,origin_length);
+    assert(new != NULL);
+    buf = new;
+  }
+}
+
 int main(int argc, char *argv[]) {
+  buf = malloc(origin_length);
+  code_buf = malloc(origin_length+128);
   int seed = time(0);
   srand(seed);
   int loop = 1;
@@ -118,23 +132,27 @@ int main(int argc, char *argv[]) {
   }
   int i;
   for (i = 0; i < loop; i++) {
-    int valid = 0;
-    while (!valid) {
-      memset(buf, '\0', sizeof(buf));
+    int zero = 0;
+    while (!zero) {
+      memset(buf, '\0', origin_length);
       gen_rand_expr(0);
-      
       if (is_division_by_zero()) continue;
       
       sprintf(code_buf, code_format, buf);
-      FILE *fp = fopen("/tmp/.code.c", "w");
+      FILE *fp = fopen("./code_gen.c", "w");
       assert(fp != NULL);
       fputs(code_buf, fp);
       fclose(fp);
 
-      int ret = system("gcc /tmp/.code.c -o /tmp/.expr 2>/dev/null");
-      if (ret != 0) continue;  
+      int ret = system("gcc code_gen.c -o expr -Wall -Werror 2>/dev/null");
+      if (ret != 0)
+      {
+        unlink("code_gen.c");
+        unlink("expr");
+        continue;
+      }   
       
-      fp = popen("/tmp/.expr 2>&1", "r");  
+      fp = popen("./expr 2>&1", "r");  
       if (fp == NULL) continue;
       
       char output[128];
@@ -153,9 +171,12 @@ int main(int argc, char *argv[]) {
         continue;  
       }
       
-      valid = 1;
+      zero = 1;
       printf("%u %s\n", result, buf);
     }
+    
   }
+  free(buf);
+  free(code_buf);
   return 0;
 }

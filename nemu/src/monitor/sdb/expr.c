@@ -24,12 +24,13 @@ int is_operator(int type);
 enum {
   TK_NOTYPE = 256, TK_EQ,
   TK_NUM,DEREF,TK_NEQ,TK_AND,
-  TK_HEX,TK_REG
+  TK_HEX,TK_REG,TK_LM
   /* TODO: Add more token types */
 
 };
 int get_priority(int type) {
   switch(type) {
+    case DEREF: return 5;
     case '+': case '-': return 3;
     case '*': case '/': return 4;
     case TK_NEQ: case TK_EQ: return 2;
@@ -59,7 +60,7 @@ static struct rule {
   {"[0-9]+",TK_NUM},
   {"!=",TK_NEQ},
   {"&&",TK_AND},
-  {"\\$[a-zA-Z0-9]+",TK_REG}
+  {"\\$[a-zA-Z0-9]+",TK_REG},
 };
 
 #define NR_REGEX ARRLEN(rules)
@@ -88,7 +89,7 @@ typedef struct token {
   char str[2048];
 } Token;
 
-static Token tokens[32] __attribute__((used)) = {};
+static Token tokens[2048] __attribute__((used)) = {};
 static int nr_token __attribute__((used))  = 0;
 
 static bool make_token(char *e) {
@@ -101,12 +102,14 @@ static bool make_token(char *e) {
   while (e[position] != '\0') {
     /* Try all rules one by one. */
     for (i = 0; i < NR_REGEX; i ++) {
+      if(nr_token == 2047)
+        memset(tokens,0,sizeof(tokens));
       if (regexec(&re[i], e + position, 1, &pmatch, 0) == 0 && pmatch.rm_so == 0) {
         char *substr_start = e + position;
         int substr_len = pmatch.rm_eo;
 
-        Log("match rules[%d] = \"%s\" at position %d with len %d: %.*s",
-            i, rules[i].regex, position, substr_len, substr_len, substr_start);
+        //Log("match rules[%d] = \"%s\" at position %d with len %d: %.*s",
+            //i, rules[i].regex, position, substr_len, substr_len, substr_start);
 
         position += substr_len;
 
@@ -153,9 +156,10 @@ static bool make_token(char *e) {
             if (nr_token == 0 ||(nr_token>0&&( tokens[nr_token - 1].type == '+' || 
             tokens[nr_token - 1].type == '-' || 
             tokens[nr_token - 1].type == '*' || 
-            tokens[nr_token - 1].type == '/'))) 
+            tokens[nr_token - 1].type == '/' ||
+            tokens[nr_token - 1].type == '='))) 
             {
-              tokens[nr_token - 1].type = DEREF;
+              tokens[nr_token].type = DEREF;
               break;
             }
             else
@@ -210,8 +214,8 @@ uint32_t eval(int p,int q)
   bool success = false;
   uint32_t result = 0;
   if (p > q) {
-    printf("Invalid.\n");
-    return 0;
+    printf("Invalid,p>q了\n");
+    return -1;
   }
   else if (p == q) {
     /* Single token.
@@ -233,6 +237,8 @@ uint32_t eval(int p,int q)
           printf("Invalid register\n");
           return 0;
         }
+        if(result<0)
+          return (uint32_t)result; 
         return result;
       default:
         printf("Invalid token type\n");
@@ -249,18 +255,27 @@ uint32_t eval(int p,int q)
     /* We should do more things here. */
     int op = -1;
     int kuohao = 0;
-    if(tokens[p].type == DEREF)
+
+    if(tokens[p].type == DEREF) 
     {
-      if(check_parentheses(p+1,q) == true)
+      if(p+1 > q) 
       {
-        uint32_t temp = eval(p+2,q-1);
-        return paddr_read(temp,4);
+          printf("Invalid dereference expression\n");
+          return 0;
       }
-      else if(p+1 == q)
+      uint32_t addr;
+      if(tokens[p+1].type == '(') {
+          if(!check_parentheses(p+1, q)) {
+              printf("Mismatched parentheses in dereference\n");
+              return 0;
+          }
+          addr = eval(p+2, q-1);  
+      } 
+      else 
       {
-        uint32_t temp = eval(p+1,q);
-        return paddr_read(temp,4);
+          addr = eval(p+1, q);     
       }
+      return paddr_read(addr, 4);  
     }
     for(int i = p;i<q+1;i++)
     {
@@ -268,13 +283,14 @@ uint32_t eval(int p,int q)
       else if(tokens[i].type == ')') kuohao--;
       else if(kuohao == 0&&is_operator(tokens[i].type))
       {
-        if(op == -1 || get_priority(tokens[i].type) < get_priority(tokens[op].type)) 
+        if(op == -1 || get_priority(tokens[i].type) < get_priority(tokens[op].type)||
+        get_priority(tokens[i].type) == get_priority(tokens[op].type)) 
           op = i;
       }
     }
-    uint32_t val1 = eval(p, op - 1);
-    uint32_t val2 = eval(op + 1, q);
-
+    int32_t val1 = eval(p, op - 1);
+    int32_t val2 = eval(op + 1, q);
+    //printf("计算: %d %c %d\n", val1, tokens[op].type, val2);
     switch (tokens[op].type) 
     {
       case '+': return val1 + val2;

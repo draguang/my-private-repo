@@ -28,7 +28,6 @@ void init_wp_pool() {
     wp_pool[i].NO = i;
     wp_pool[i].next = (i == NR_WP - 1 ? NULL : &wp_pool[i + 1]);
   }
-
   head = NULL;
   free_ = wp_pool;
 }
@@ -78,7 +77,7 @@ void print_wp()
     printf("%-8s %-8s %-8s %-8s\n","NO","value","enable","expr");
     while(count!=NULL)
     {
-      printf("%-8d %-8u %-8c %-8s\n",count->NO,expr(count->expr,&success),is_enable(count),count->expr);
+      printf("%-8d 0x%08x %-8c %-8s\n",count->NO,expr(count->expr,&success),is_enable(count),count->expr);
       count = count->next;
     }
   }
