@@ -1,0 +1,2 @@
+TARGET = ex1
+CFLAGS = 

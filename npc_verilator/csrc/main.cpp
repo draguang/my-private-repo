@@ -5,9 +5,6 @@
 #include "verilated.h"
 #include <nvboard.h>
 #include "verilated_vcd_c.h"
-extern "C"{
-  int trap();
-}
 void nvboard_bind_all_pins(Vtop* top);
 VerilatedContext *context = new VerilatedContext;
 Vtop* top = new Vtop{context};
@@ -42,8 +39,6 @@ int main(int argc, char** argv)
         nvboard_update();
         tfp->dump(context->time());
         context->timeInc(1);
-        if(trap())
-          break;
     }
     tfp->close();
 }
